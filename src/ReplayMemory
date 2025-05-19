@@ -1,0 +1,17 @@
+from collections import deque, namedtuple
+
+Transition = namedtuple('Transition', 'state', 'action', 'next_state', 'reward')
+
+class ReplayMemory(object):
+    def __init__(self, capacity):
+        self.memory = deque([], maxlen=capacity)
+    
+    # Saves information
+    def push(self, *args):
+    
+    # Returns "memories" for the AI to train off of
+    def sample(self, batch_size):
+
+    # Returns the length
+    def __len__(self):
+        return len(self.memory)
