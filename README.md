@@ -8,7 +8,7 @@ https://gymnasium.farama.org/environments/box2d/car_racing/
 
 ## Goals
 
-Fast and accurate car with minimal training to save the environment
+Fast and accurate car with minimal training
 
 Good code
 
