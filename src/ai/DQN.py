@@ -26,3 +26,15 @@ class DQN:
         for self_layer, other_layer in zip(self.layers, other.layers):
             self_layer.weights = np.copy(other_layer.weights)
             self_layer.biases = np.copy(other_layer.biases)
+
+    def clip_gradients(self, max_val):
+        for layer in self.layers:
+            layer.clip_gradients(max_val)
+            
+    def backward(self, grad_output):
+        for i in reversed(range(len(self.layers))):
+            grad_output = self.layers[i].backward(grad_output)
+
+    def update(self, lr):
+        for layer in self.layers:
+            layer.update(lr)
