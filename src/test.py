@@ -8,6 +8,6 @@ def doenv():
     non_random_obs, _ = env.reset(options={"randomize": False})
 
     agent = Middleman(env)
-    agent.train(render=True, log=True)
+    agent.train(render=True, log_progress=True)
 
     env.close()

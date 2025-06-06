@@ -5,8 +5,9 @@ import math
 import random
 import numpy as np
 import gymnasium as gym
-from tqdm import trange
-from collections import deque
+from tqdm import trange, tqdm
+import matplotlib.pyplot as plt
+from scipy.ndimage import uniform_filter1d
 
 class Middleman:
     def __init__(self, env: gym.Env):
@@ -46,7 +47,7 @@ class Middleman:
     
     def optimize_model(self):
         if len(self.memory) < params.BATCH_SIZE:
-            return
+            return None, None
         
         transitions = self.memory.sample(batch_size=params.BATCH_SIZE)
         
@@ -100,41 +101,73 @@ class Middleman:
         # update policy net
         self.policy_net.update(params.LR)
         
+        return [loss_value, np.mean(full_q_values)]
+
     # def copy_policy_to_target(self):
     #     self.target_net.load(self.policy_net)
         
-    def train(self, render=False, log=False):
-        episode_range = trange(params.NUM_EPISODES, desc="Training", ncols=100) if log else range(params.NUM_EPISODES)
-        
-        for i_episode in range(params.NUM_EPISODES):
+    def train(self, render=False, log_progress=False):
+        best_duration = 0
+        steps_per_episode = []
+
+        episode_range = trange(params.NUM_EPISODES, desc="Training", leave=True) if log_progress else range(params.NUM_EPISODES)
+
+        for i_episode in episode_range:
             state, info = self.env.reset()
             state = np.expand_dims(state, axis=0)
-            
+            total_steps = 0
+
             for t in range(params.MAX_TIMESTEPS):
                 action = self.select_action(state)
                 action_value = int(action[0, 0])
-                
+
                 next_obs, reward, terminated, truncated, _ = self.env.step(action_value)
                 if render:
                     self.env.render()
-                done = terminated or truncated # killed the sim or won
-                
+                done = terminated or truncated
+
                 reward = np.array([[reward]])
                 next_state = None if terminated else np.expand_dims(next_obs, axis=0)
-                
+
                 self.memory.push(state, action, next_state, reward)
-                
+
                 state = next_state
-                
-                self.optimize_model()
-                
-                for target_layer, policy_layer in zip(self.target_net.layers, self.policy_net.layers):
-                    target_layer.weights = params.TAU * policy_layer.weights + (1 - params.TAU) * target_layer.weights
-                    target_layer.biases = params.TAU * policy_layer.biases + (1 - params.TAU) * target_layer.biases
-                    
+
+                loss_value, mean_q = self.optimize_model()
+
+                # hard target net sync every 100 steps
+                if self.steps_done % 100 == 0:
+                    self.target_net.load(self.policy_net)
+                # else:
+                #     for target_layer, policy_layer in zip(self.target_net.layers, self.policy_net.layers):
+                #         target_layer.weights = params.TAU * policy_layer.weights + (1 - params.TAU) * target_layer.weights
+                #         target_layer.biases = params.TAU * policy_layer.biases + (1 - params.TAU) * target_layer.biases
+
+                total_steps += 1
                 if done:
                     break
-                
-            if log:
+            
+            best_duration = max(best_duration, total_steps)
+            steps_per_episode.append(total_steps)
+
+            if log_progress:
                 episode_range.set_description(f"Ep {i_episode + 1}/{params.NUM_EPISODES}")
-                episode_range.set_postfix_str(f"Steps: {t + 1}")
+                episode_range.set_postfix(Steps=total_steps, Best=best_duration)
+                
+            if log_progress and loss_value is not None and i_episode % 10 == 0:
+                tqdm.write(f"Ep {i_episode} | loss: {loss_value:.4f} | mean_q: {mean_q:.2f}")
+
+        # Save plot
+        if log_progress:
+            smoothed = uniform_filter1d(steps_per_episode, size=20) # moving average line
+            plt.figure(figsize=(10, 5))
+            plt.plot(steps_per_episode, label="Steps per Episode")
+            plt.plot(smoothed, label="Smoothed")
+            plt.xlabel("Episode")
+            plt.ylabel("Steps")
+            plt.title("Training Progress")
+            plt.grid(True)
+            plt.legend()
+            plt.tight_layout()
+            plt.savefig("training_progress.png")
+            plt.close()
