@@ -14,7 +14,12 @@ Followed https://docs.pytorch.org/tutorials/intermediate/reinforcement_q_learnin
 
 Didn't use pytorch, wrote everything from scratch with NumPy
 
-## Issues
+### Features
+
+- double DQN
+- huber loss
+
+### Issues
 
 - The model experiences an exploration phase for the first 100-150 episodes, and then rapidly reaches max steps (500)
-  - However, after ~10-20 episodes at max steps, the model becomes overconfident and Q values explode, causing it to reset down to 10 steps
+  - However, after some episodes at max steps, the model becomes overconfident and Q values explode, causing it to reset down to 10 steps
