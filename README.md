@@ -2,20 +2,19 @@
 
 A very simple DQN to learn more about reinforcement learning in premade gymnasium environments.
 
+Name is like yaml -> yet another dqn
+
 ## Environment
 
-https://gymnasium.farama.org/environments/box2d/car_racing/
+https://gymnasium.farama.org/environments/classic_control/cart_pole/
 
-## Goals
+## Notes
 
-Fast and accurate car with minimal training
+Followed https://docs.pytorch.org/tutorials/intermediate/reinforcement_q_learning.html to learn
 
-Good code
+Didn't use pytorch, wrote everything from scratch with NumPy
 
-## Features
+## Issues
 
-* Q network
-    * Feed forward NN
-    * Epsilon greedy exploration vs exploitation
-    * Q Network
-    * 2 hidden layers
+- The model experiences an exploration phase for the first 100-150 episodes, and then rapidly reaches max steps (500)
+  - However, after ~10-20 episodes at max steps, the model becomes overconfident and Q values explode, causing it to reset down to 10 steps

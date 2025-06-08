@@ -14,14 +14,14 @@ class Middleman:
         self.env = env
         state, info = self.env.reset()
         
-        self.n_observations = len(state)
-        self.n_actions = self.env.action_space.n # only for discrete action spaces
-        
-        self.policy_net = DQN(self.n_observations, [128, 128], self.n_actions)
-        self.target_net = DQN(self.n_observations, [128, 128], self.n_actions)
+        self.n_observations = len(state) # input to network
+        self.n_actions = self.env.action_space.n # output to network, only for discrete action spaces
+                
+        self.policy_net = DQN(self.n_observations, [128, 128], self.n_actions) # policy net used to select actions, updated every step
+        self.target_net = DQN(self.n_observations, [128, 128], self.n_actions) # target net used to evaluate actions, only updated every 100 steps
         self.target_net.load(self.policy_net)
 
-        self.memory = ReplayMemory(params.REPLAY_BUFFER_SIZE)
+        self.memory = ReplayMemory(params.REPLAY_BUFFER_SIZE) # initialize replay buffer
         
         self.steps_done = 0
         
@@ -31,13 +31,13 @@ class Middleman:
             math.exp(-1. * self.steps_done / params.EPS_DECAY)
         self.steps_done += 1
         
-        if sample > eps_threshold:
-            q_values = self.policy_net.forward(state)
-            return np.array([[np.argmax(q_values)]])  # pick best action
-        else:
+        if sample > eps_threshold: # eps used for exploration, only use network 1-eps of the time
+            q_values = self.policy_net.forward(state) # get q values from network
+            return np.array([[np.argmax(q_values)]])  # select best action from q values
+        else: # randomly select action, used eps of the time
             return np.array([[self.env.action_space.sample()]])
         
-    def huber_loss(self, y_true, y_pred, delta=1.0):
+    def huber_loss(self, y_true, y_pred, delta=1.0): # loss function
         error = y_true - y_pred
         abs_error = np.abs(error)
         quadratic = np.minimum(abs_error, delta)
@@ -49,7 +49,7 @@ class Middleman:
         if len(self.memory) < params.BATCH_SIZE:
             return None, None
         
-        transitions = self.memory.sample(batch_size=params.BATCH_SIZE)
+        transitions = self.memory.sample(batch_size=params.BATCH_SIZE) # our batch
         
         # transpose the batch (batch-array of transitions -> transition of batch-arrays)
         """
@@ -61,11 +61,11 @@ class Middleman:
             done=(d0, d1, d2)
         )
         """
-        batch = Transition(*zip(*transitions))
+        batch = Transition(*zip(*transitions)) # transform the batch data into a more digestible format
         
-        non_final_mask = np.array([s is not None for s in batch.next_state], dtype=bool)
+        non_final_mask = np.array([s is not None for s in batch.next_state], dtype=bool) # mask out the non-terminal experiences from sample
         non_final_next_states_list = [s for s in batch.next_state if s is not None]
-        state_dim = batch.state[0].shape[1]
+        state_dim = batch.state[0].shape[1] # dimensionality of each state, excluding batch dimension
         
         if non_final_next_states_list:
             non_final_next_states = np.concatenate(non_final_next_states_list, axis=0)
@@ -74,24 +74,29 @@ class Middleman:
         
         state_batch = np.concatenate(batch.state)
         action_batch = np.concatenate(batch.action)
-        reward_batch = np.concatenate(batch.reward)
+        reward_batch = np.concatenate(batch.reward).reshape(-1, 1)
         
         # shape (params.BATCH_SIZE, self.n_actions)
         batch_indices = np.arange(action_batch.shape[0])
         action_indices = action_batch.flatten()
-        full_q_values = self.policy_net.forward(state_batch)
-        state_action_values = full_q_values[batch_indices, action_indices][:, np.newaxis]
         
+        # evaluate q values of the next state with target net
         next_state_values = np.zeros((params.BATCH_SIZE, 1))
-        next_state_values[non_final_mask] = np.max(self.target_net.forward(non_final_next_states), axis=1, keepdims=True)
+        next_q_policy = self.policy_net.forward(non_final_next_states)
+        best_actions = np.argmax(next_q_policy, axis=1)
+        next_q_target = self.target_net.forward(non_final_next_states)
+        target_q_values = next_q_target[np.arange(len(best_actions)), best_actions]
+        next_state_values[non_final_mask] = target_q_values[:, np.newaxis]
 
-        expected_state_action_values = (next_state_values * params.GAMMA) + reward_batch
+        expected_state_action_values = (next_state_values * params.GAMMA) + reward_batch # bellman eq for q value of current states
+        full_q_values = self.policy_net.forward(state_batch) # run the batch through the policy net
+        state_action_values = full_q_values[batch_indices, action_indices][:, np.newaxis] # filter for q values for actions that were actually taken in our batch
         
         # huber loss (mean absolute error when error is large to avoid crazy loss with mean squared error)
         loss_value, grad_loss_output = self.huber_loss(expected_state_action_values, state_action_values)
         
         # backprop the gradient through nn
-        grad_full = np.zeros_like(full_q_values)
+        grad_full = np.zeros_like(full_q_values) # initialize gradient matrix to zero, will only backprop for actions that were actually taken
         grad_full[batch_indices, action_indices] = grad_loss_output.flatten()
         self.policy_net.backward(grad_full)
         
@@ -106,7 +111,7 @@ class Middleman:
     # def copy_policy_to_target(self):
     #     self.target_net.load(self.policy_net)
         
-    def train(self, render=False, log_progress=False):
+    def train(self, render=False, log_progress=False): # run multiple episodes of training, interacting with the env and updating the policy
         best_duration = 0
         steps_per_episode = []
 
