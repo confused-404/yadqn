@@ -24,3 +24,5 @@ Didn't use pytorch, wrote everything from scratch with NumPy
 
 - The model experiences an exploration phase for the first 100-150 episodes, and then rapidly reaches max steps (500)
   - However, after some episodes at max steps, the model becomes overconfident and Q values explode, causing it to reset down to 10 steps
+
+ ![alt text](https://github.com/confused-404/yadqn/blob/main/training_progress.png?raw=true)
